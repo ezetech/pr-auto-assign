@@ -4,7 +4,7 @@ import { getInput } from '@actions/core';
 import { WebhookPayload } from '@actions/github/lib/interfaces';
 import { validateConfig } from './config';
 import { Config } from './config/typings';
-import { debug, error } from './logger';
+import { debug, error, warning } from './logger';
 
 function getMyOctokit() {
   const myToken = getInput('token');
@@ -119,4 +119,75 @@ export async function assignReviewers(
     reviewers: reviewers,
   });
   return;
+}
+
+export async function getLatestCommitDate(pr: PullRequest): Promise<{
+  latestCommitDate: Date;
+  authoredDateString: string;
+}> {
+  const octokit = getMyOctokit();
+  try {
+    const queryResult = await octokit.graphql<any>(`{
+    repository(owner: "${context.repo.owner}", name: "${context.repo.repo}") {
+      pullRequest(number: ${pr.number}) {
+        title
+        number
+        commits(last: 1) {
+          edges {
+            node {
+              commit {
+                authoredDate
+              }
+            }
+          }
+        }
+      }
+    }
+  }`);
+    const authoredDateString =
+      queryResult.repository.pullRequest.commits.edges[0].node.commit.authoredDate;
+    const latestCommitDate = new Date(authoredDateString);
+    return {
+      latestCommitDate,
+      authoredDateString,
+    };
+  } catch (err) {
+    warning(err as Error);
+    throw err;
+  }
+}
+
+type ApprovedReview = {
+  author: string;
+  submittedAt: Date;
+};
+
+export async function getApproves(pr: PullRequest): Promise<ApprovedReview[]> {
+  const octokit = getMyOctokit();
+  const reviews = await octokit.paginate(
+    'GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews',
+    {
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      pull_number: pr.number,
+    },
+  );
+  return reviews.reduce<ApprovedReview[]>((result, review) => {
+    if (review.state !== 'APPROVED') {
+      return result;
+    }
+    if (!review.user) {
+      warning(`No review.user provided for review ${review.id}`);
+      return result;
+    }
+    if (!review.submitted_at) {
+      warning(`No review.submitted_at provided for review ${review.id}`);
+      return result;
+    }
+    result.push({
+      author: review.user.login,
+      submittedAt: new Date(review.submitted_at),
+    });
+    return result;
+  }, []);
 }
