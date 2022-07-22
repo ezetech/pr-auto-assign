@@ -1,10 +1,10 @@
-import { info, error, warning, debug } from './logger';
-import * as gh from './github';
+import { info, error, warning, debug } from '../logger';
+import * as gh from '../github';
 import {
   identifyFileChangeGroups,
   identifyReviewers,
   shouldRequestReview,
-} from './reviewer';
+} from '../reviewer';
 
 export async function run(): Promise<void> {
   try {

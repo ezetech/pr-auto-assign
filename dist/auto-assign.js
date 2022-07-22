@@ -33446,6 +33446,7 @@ function validateConfig(configJson) {
     if (error) {
         throw new Error(JSON.stringify(error.details));
     }
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     return value;
 }
 
@@ -33491,6 +33492,7 @@ class PullRequest {
 }
 function getPullRequest() {
     const pr = github.context.payload.pull_request;
+    // @todo validate PR data
     if (!pr) {
         throw new Error('No pull_request data in context.payload');
     }
@@ -33523,23 +33525,23 @@ function fetchConfig() {
 function fetchChangedFiles({ pr }) {
     return __awaiter(this, void 0, void 0, function* () {
         const octokit = getMyOctokit();
-        const changed_files = [];
-        const per_page = 100;
+        const changedFiles = [];
+        const perPage = 100;
         let page = 0;
-        let number_of_files_in_current_page;
+        let numberOfFilesInCurrentPage;
         do {
             page += 1;
-            const { data: response_body } = yield octokit.rest.pulls.listFiles({
+            const { data: responseBody } = yield octokit.rest.pulls.listFiles({
                 owner: github.context.repo.owner,
                 repo: github.context.repo.repo,
                 pull_number: pr.number,
                 page,
-                per_page,
+                per_page: perPage,
             });
-            number_of_files_in_current_page = response_body.length;
-            changed_files.push(...response_body.map((file) => file.filename));
-        } while (number_of_files_in_current_page === per_page);
-        return changed_files;
+            numberOfFilesInCurrentPage = responseBody.length;
+            changedFiles.push(...responseBody.map((file) => file.filename));
+        } while (numberOfFilesInCurrentPage === perPage);
+        return changedFiles;
     });
 }
 function assignReviewers(pr, reviewers) {
@@ -33550,7 +33552,6 @@ function assignReviewers(pr, reviewers) {
             repo: github.context.repo.repo,
             pull_number: pr.number,
             reviewers: reviewers,
-            // team_reviewers: teams,
         });
         return;
     });
@@ -33602,12 +33603,12 @@ function getReviewersBasedOnRule({ assign, reviewers, createdBy, requestedReview
         });
         return result;
     }
-    const preselectAlreadySelectedReviewers = reviewers.reduce((result, reviewer) => {
+    const preselectAlreadySelectedReviewers = reviewers.reduce((alreadySelectedReviewers, reviewer) => {
         const alreadyRequested = requestedReviewerLogins.includes(reviewer);
         if (alreadyRequested) {
-            result.push(reviewer);
+            alreadySelectedReviewers.push(reviewer);
         }
-        return result;
+        return alreadySelectedReviewers;
     }, []);
     const selectedList = [...preselectAlreadySelectedReviewers];
     while (selectedList.length < assign) {
@@ -33645,7 +33646,7 @@ function identifyReviewersByDefaultRules({ byFileGroups, fileChangesGroups, crea
 function identifyReviewers({ createdBy, rulesByCreator, fileChangesGroups, defaultRules, requestedReviewerLogins, }) {
     const rules = rulesByCreator[createdBy];
     if (!rules) {
-        info(`No rules for creator ${createdBy} was found.`);
+        info(`No rules for creator ${createdBy} were found.`);
         if (defaultRules) {
             info('Using default rules');
             return identifyReviewersByDefaultRules({
@@ -33703,8 +33704,8 @@ const reviewer_shouldRequestReview = withDebugLog(shouldRequestReview);
 const reviewer_identifyReviewers = withDebugLog(identifyReviewers);
 const reviewer_identifyFileChangeGroups = withDebugLog(identifyFileChangeGroups);
 
-;// CONCATENATED MODULE: ./src/index.ts
-var src_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+;// CONCATENATED MODULE: ./src/actions/auto-assign.ts
+var auto_assign_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -33717,7 +33718,7 @@ var src_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _argu
 
 
 function run() {
-    return src_awaiter(this, void 0, void 0, function* () {
+    return auto_assign_awaiter(this, void 0, void 0, function* () {
         try {
             info('Starting pr auto assign.');
             let config;
@@ -33761,13 +33762,13 @@ function run() {
                 requestedReviewerLogins: pr.requestedReviewerLogins,
             });
             info(`Identified reviewers: ${reviewers.join(', ')}`);
-            if (reviewers.length === 0) {
+            const reviewersToAssign = reviewers.filter((reviewer) => reviewer !== author);
+            if (reviewersToAssign.length === 0) {
                 info(`No reviewers were matched for author ${author}. Terminating the process`);
                 return;
             }
-            const reviewersToAssign = reviewers.filter((reviewer) => reviewer !== author);
-            info(`Requesting review to ${reviewersToAssign.join(', ')}`);
             yield assignReviewers(pr, reviewersToAssign);
+            info(`Requesting review to ${reviewersToAssign.join(', ')}`);
             info('Done');
         }
         catch (err) {

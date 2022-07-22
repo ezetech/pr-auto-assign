@@ -225,4 +225,3 @@ act -s GITHUB_TOKEN=yourtoken
 ## TODO
 
 - [ ] Implement auto-merge PR functionality.
-- [ ] lint & test on pre-commit hooks.
