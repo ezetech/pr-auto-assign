@@ -30,19 +30,17 @@ export function shouldRequestReview({
 
 function getReviewersBasedOnRule({
   assign,
-  reviewers,
+  reviewers: reviewersList,
   createdBy,
   requestedReviewerLogins,
 }: Pick<Rule, 'assign' | 'reviewers'> & {
   createdBy: string;
   requestedReviewerLogins: string[];
 }) {
+  const reviewers = reviewersList.filter((reviewer) => reviewer !== createdBy);
   const result = new Set<string>();
   if (!assign) {
     reviewers.forEach((reviewer) => {
-      if (reviewer === createdBy) {
-        return;
-      }
       return result.add(reviewer);
     });
     return result;

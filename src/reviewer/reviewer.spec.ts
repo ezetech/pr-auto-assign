@@ -133,6 +133,53 @@ describe('Should test identifyReviewers: ', () => {
     }
     done();
   });
+  it('Should assign 1 random reviewer out of 2, by creator, same one. Because another from that list is creator', (done) => {
+    const times = 1000;
+    for (let i = 0; i < times; i++) {
+      const result = identifyReviewers({
+        requestedReviewerLogins: [],
+        createdBy: 'Bob',
+        rulesByCreator: {
+          Bob: [
+            {
+              reviewers: ['Calvin', 'Bob'],
+              required: 1,
+              assign: 1,
+            },
+          ],
+        },
+        fileChangesGroups: ['file-group-2'],
+      });
+      expect(result).to.include('Calvin', 'Calvin is required');
+      expect(result.length).to.be.equal(1);
+    }
+    done();
+  });
+  it('Should assign 1 random reviewer out of 2, by default rules, same one. Because another from that list is creator', (done) => {
+    const times = 1000;
+    for (let i = 0; i < times; i++) {
+      const result = identifyReviewers({
+        requestedReviewerLogins: [],
+        createdBy: 'Bob',
+        rulesByCreator: {},
+        defaultRules: {
+          byFileGroups: {
+            'file-group-2': [
+              {
+                reviewers: ['Calvin', 'Bob'],
+                required: 1,
+                assign: 1,
+              },
+            ],
+          },
+        },
+        fileChangesGroups: ['file-group-2'],
+      });
+      expect(result).to.include('Calvin', 'Calvin is required');
+      expect(result.length).to.be.equal(1);
+    }
+    done();
+  });
   it('Should assign same reviewers for Bob 1000 times. Because 3 approvers were already requested before', (done) => {
     const times = 1000;
     for (let i = 0; i < times; i++) {
