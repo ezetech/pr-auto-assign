@@ -408,6 +408,53 @@ describe('should test shouldRequestReview:', () => {
     });
     expect(result).to.be.equal(false, 'Should not request review');
   });
+  it('should not request review, cos merge commit detected', () => {
+    const result = shouldRequestReview({
+      isDraft: false,
+      currentLabels: [],
+      options: {
+        ignoreReassignForMergedPRs: true,
+      },
+      commitData: {
+        message: 'Merge pull request #10000 from repo/branch-1\n\nSome commit message',
+        parents: [
+          {
+            sha: 'sha1',
+            url: 'sha1url',
+            html_url: 'sha1url',
+          },
+          {
+            sha: 'sha2',
+            url: 'sha2url',
+            html_url: 'sha2url',
+          },
+        ],
+      },
+    });
+    expect(result).to.be.equal(false, 'Should not request review');
+  });
+  it('should request review, even though merge commit is present, but related option is disabled', () => {
+    const result = shouldRequestReview({
+      isDraft: false,
+      currentLabels: [],
+      commitData: {
+        message: 'Merge pull request #10000 from repo/branch-1\n\nSome commit message',
+        parents: [
+          {
+            sha: 'sha1',
+            url: 'sha1url',
+            html_url: 'sha1url',
+          },
+          {
+            sha: 'sha2',
+            url: 'sha2url',
+            html_url: 'sha2url',
+          },
+        ],
+      },
+    });
+    expect(result).to.be.equal(true, 'Should request review');
+  });
   it('should not ignore PR (non-draft PR)', () => {
     const result = shouldRequestReview({
       isDraft: false,

@@ -48,8 +48,39 @@ export function getPullRequest(): PullRequest {
   if (!pr) {
     throw new Error('No pull_request data in context.payload');
   }
-  debug(`PR event payload: ${JSON.stringify(pr)}`);
+  debug(`Context.payload: ${JSON.stringify(context.payload)}`);
   return new PullRequest(pr);
+}
+
+export function getLatestSha(): string {
+  return context.payload.after;
+}
+
+export type CommitData = {
+  message: string;
+  parents: unknown[];
+};
+
+export async function getCommitData(sha: string): Promise<CommitData> {
+  const octokit = getMyOctokit();
+  debug(`Fetching commit data of sha ${sha}`);
+  // @todo: also validation needed;
+  const response = await octokit.request(
+    'GET /repos/{owner}/{repo}/git/commits/{commit_sha}',
+    {
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      commit_sha: sha,
+    },
+  );
+  if (response.status !== 200) {
+    error(`Response.status: ${response.status}`);
+    throw new Error(JSON.stringify(response.data));
+  }
+  return {
+    message: response.data.message,
+    parents: response.data.parents,
+  };
 }
 
 export async function fetchConfig(): Promise<Config> {

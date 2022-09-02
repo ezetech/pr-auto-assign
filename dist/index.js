@@ -33418,7 +33418,8 @@ var lib = __nccwpck_require__(918);
 const schema = lib.object()
     .keys({
     options: lib.object({
-        ignoredLabels: lib.array().items(lib.string()),
+        ignoredLabels: lib.array().items(lib.string()).optional(),
+        ignoreReassignForMergedPRs: lib.boolean().optional(),
     }).optional(),
     defaultRules: lib.object({
         byFileGroups: lib.object().pattern(lib.string(), lib.array().items(lib.object({
@@ -33446,6 +33447,7 @@ function validateConfig(configJson) {
     if (error) {
         throw new Error(JSON.stringify(error.details));
     }
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     return value;
 }
 
@@ -33491,11 +33493,35 @@ class PullRequest {
 }
 function getPullRequest() {
     const pr = github.context.payload.pull_request;
+    // @todo validate PR data
     if (!pr) {
         throw new Error('No pull_request data in context.payload');
     }
-    debug(`PR event payload: ${JSON.stringify(pr)}`);
+    debug(`Context.payload: ${JSON.stringify(github.context.payload)}`);
     return new PullRequest(pr);
+}
+function getLatestSha() {
+    return github.context.payload.after;
+}
+function getCommitData(sha) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const octokit = getMyOctokit();
+        debug(`Fetching commit data of sha ${sha}`);
+        // @todo: also validation needed;
+        const response = yield octokit.request('GET /repos/{owner}/{repo}/git/commits/{commit_sha}', {
+            owner: github.context.repo.owner,
+            repo: github.context.repo.repo,
+            commit_sha: sha,
+        });
+        if (response.status !== 200) {
+            error(`Response.status: ${response.status}`);
+            throw new Error(JSON.stringify(response.data));
+        }
+        return {
+            message: response.data.message,
+            parents: response.data.parents,
+        };
+    });
 }
 function fetchConfig() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -33523,23 +33549,23 @@ function fetchConfig() {
 function fetchChangedFiles({ pr }) {
     return __awaiter(this, void 0, void 0, function* () {
         const octokit = getMyOctokit();
-        const changed_files = [];
-        const per_page = 100;
+        const changedFiles = [];
+        const perPage = 100;
         let page = 0;
-        let number_of_files_in_current_page;
+        let numberOfFilesInCurrentPage;
         do {
             page += 1;
-            const { data: response_body } = yield octokit.rest.pulls.listFiles({
+            const { data: responseBody } = yield octokit.rest.pulls.listFiles({
                 owner: github.context.repo.owner,
                 repo: github.context.repo.repo,
                 pull_number: pr.number,
                 page,
-                per_page,
+                per_page: perPage,
             });
-            number_of_files_in_current_page = response_body.length;
-            changed_files.push(...response_body.map((file) => file.filename));
-        } while (number_of_files_in_current_page === per_page);
-        return changed_files;
+            numberOfFilesInCurrentPage = responseBody.length;
+            changedFiles.push(...responseBody.map((file) => file.filename));
+        } while (numberOfFilesInCurrentPage === perPage);
+        return changedFiles;
     });
 }
 function assignReviewers(pr, reviewers) {
@@ -33550,7 +33576,6 @@ function assignReviewers(pr, reviewers) {
             repo: github.context.repo.repo,
             pull_number: pr.number,
             reviewers: reviewers,
-            // team_reviewers: teams,
         });
         return;
     });
@@ -33576,38 +33601,49 @@ var minimatch = __nccwpck_require__(3973);
 
 
 
-function shouldRequestReview({ isDraft, options, currentLabels, }) {
+function checkIsMergePRCommit({ parents, message }) {
+    if (parents.length < 2) {
+        return false;
+    }
+    return message.startsWith('Merge pull request');
+}
+function shouldRequestReview({ isDraft, options, commitData, currentLabels, }) {
     if (isDraft) {
         return false;
     }
     if (!options) {
         return true;
     }
+    const { ignoredLabels, ignoreReassignForMergedPRs } = options;
     const includesIgnoredLabels = currentLabels.some((currentLabel) => {
-        return options.ignoredLabels.includes(currentLabel);
+        return (ignoredLabels || []).includes(currentLabel);
     });
     if (includesIgnoredLabels) {
         return false;
     }
+    if (ignoreReassignForMergedPRs && commitData) {
+        const isMergePRCommit = checkIsMergePRCommit(commitData);
+        if (isMergePRCommit) {
+            return false;
+        }
+    }
     return true;
 }
-function getReviewersBasedOnRule({ assign, reviewers, createdBy, requestedReviewerLogins, }) {
+function getReviewersBasedOnRule({ assign, reviewers: reviewersList, createdBy, requestedReviewerLogins, }) {
+    const reviewers = reviewersList.filter((reviewer) => reviewer !== createdBy);
     const result = new Set();
     if (!assign) {
         reviewers.forEach((reviewer) => {
-            if (reviewer === createdBy) {
-                return;
-            }
             return result.add(reviewer);
         });
         return result;
     }
-    const preselectAlreadySelectedReviewers = reviewers.reduce((result, reviewer) => {
+    const preselectAlreadySelectedReviewers = reviewers.reduce((alreadySelectedReviewers, reviewer) => {
         const alreadyRequested = requestedReviewerLogins.includes(reviewer);
         if (alreadyRequested) {
-            result.push(reviewer);
+            alreadySelectedReviewers.push(reviewer);
         }
-        return result;
+        return alreadySelectedReviewers;
     }, []);
     const selectedList = [...preselectAlreadySelectedReviewers];
     while (selectedList.length < assign) {
@@ -33645,7 +33681,7 @@ function identifyReviewersByDefaultRules({ byFileGroups, fileChangesGroups, crea
 function identifyReviewers({ createdBy, rulesByCreator, fileChangesGroups, defaultRules, requestedReviewerLogins, }) {
     const rules = rulesByCreator[createdBy];
     if (!rules) {
-        info(`No rules for creator ${createdBy} was found.`);
+        info(`No rules for creator ${createdBy} were found.`);
         if (defaultRules) {
             info('Using default rules');
             return identifyReviewersByDefaultRules({
@@ -33716,7 +33752,9 @@ var src_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _argu
 
 
 
+
 function run() {
+    var _a;
     return src_awaiter(this, void 0, void 0, function* () {
         try {
             info('Starting pr auto assign.');
@@ -33734,13 +33772,20 @@ function run() {
             }
             const pr = getPullRequest();
             const { isDraft, author } = pr;
+            const latestSha = getLatestSha();
+            let commitData;
+            if (((_a = config.options) === null || _a === void 0 ? void 0 : _a.ignoreReassignForMergedPRs) && latestSha) {
+                commitData = yield getCommitData(latestSha);
+            }
             if (!reviewer_shouldRequestReview({
                 isDraft,
+                commitData,
                 options: config.options,
                 currentLabels: pr.labelNames,
             })) {
                 info(`Matched the ignoring rules ${JSON.stringify({
                     isDraft,
+                    commitData,
                     prLabels: pr.labelNames,
                 })}; terminating the process.`);
                 return;
@@ -33761,13 +33806,13 @@ function run() {
                 requestedReviewerLogins: pr.requestedReviewerLogins,
             });
             info(`Identified reviewers: ${reviewers.join(', ')}`);
-            if (reviewers.length === 0) {
+            const reviewersToAssign = reviewers.filter((reviewer) => reviewer !== author);
+            if (reviewersToAssign.length === 0) {
                 info(`No reviewers were matched for author ${author}. Terminating the process`);
                 return;
             }
-            const reviewersToAssign = reviewers.filter((reviewer) => reviewer !== author);
-            info(`Requesting review to ${reviewersToAssign.join(', ')}`);
             yield assignReviewers(pr, reviewersToAssign);
+            info(`Requesting review to ${reviewersToAssign.join(', ')}`);
             info('Done');
         }
         catch (err) {
