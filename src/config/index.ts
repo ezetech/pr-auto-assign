@@ -4,7 +4,8 @@ import { Config } from './typings';
 const schema = Joi.object<Config>()
   .keys({
     options: Joi.object({
-      ignoredLabels: Joi.array().items(Joi.string()),
+      ignoredLabels: Joi.array().items(Joi.string()).optional(),
+      ignoreReassignForMergedPRs: Joi.boolean().optional(),
     }).optional(),
     defaultRules: Joi.object({
       byFileGroups: Joi.object().pattern(

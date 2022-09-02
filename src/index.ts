@@ -5,6 +5,7 @@ import {
   identifyReviewers,
   shouldRequestReview,
 } from './reviewer';
+import { CommitData, getCommitData, getLatestSha } from './github';
 
 export async function run(): Promise<void> {
   try {
@@ -27,9 +28,16 @@ export async function run(): Promise<void> {
     const pr = gh.getPullRequest();
     const { isDraft, author } = pr;
 
+    const latestSha = getLatestSha();
+    let commitData: undefined | CommitData;
+    if (config.options?.ignoreReassignForMergedPRs && latestSha) {
+      commitData = await getCommitData(latestSha);
+    }
+
     if (
       !shouldRequestReview({
         isDraft,
+        commitData,
         options: config.options,
         currentLabels: pr.labelNames,
       })
@@ -37,6 +45,7 @@ export async function run(): Promise<void> {
       info(
         `Matched the ignoring rules ${JSON.stringify({
           isDraft,
+          commitData,
           prLabels: pr.labelNames,
         })}; terminating the process.`,
       );

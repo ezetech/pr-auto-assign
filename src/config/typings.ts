@@ -10,7 +10,8 @@ export type DefaultRules = {
 };
 
 type Options = {
-  ignoredLabels: string[];
+  ignoredLabels?: string[];
+  ignoreReassignForMergedPRs?: boolean;
 };
 
 export type Config = {
