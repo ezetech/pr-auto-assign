@@ -4,7 +4,9 @@
   "description": "GitHub Action that automatically requests review of a pull request based on who creates PR and what files were changed",
   "main": "index.ts",
   "scripts": {
-    "build": "ncc build ./src/actions/auto-assign.ts -o dist && mv ./dist/index.js ./dist/auto-assign.js",
+    "build:auto-assign": "ncc build ./src/actions/auto-assign.ts -o dist && mv ./dist/index.js ./dist/auto-assign.js",
+    "build:auto-merge": "ncc build ./src/actions/auto-merge.ts -o dist && mv ./dist/index.js ./dist/auto-merge.js",
+    "build": "npm run build:auto-assign && npm run build:auto-merge",
     "test": "tsc --noEmit && NODE_ENV=test mocha --exit -r ts-node/register \"./src/**/*.spec.ts\"",
     "lint": "eslint -f unix \"src/**/*.@(ts|tsx)\"",
     "lint:fix": "eslint --fix -f unix \"src/**/*.@(ts|tsx)\"",
@@ -28,6 +30,7 @@
     "@ezetech/eslint-config": "^1.2.1",
     "@types/chai": "^4.3.1",
     "@types/minimatch": "^3.0.5",
+    "@types/node": "^18.11.12",
     "@typescript-eslint/eslint-plugin": "^5.30.6",
     "@typescript-eslint/parser": "^5.30.6",
     "@vercel/ncc": "^0.34.0",
@@ -46,6 +49,6 @@
     "mocha-typescript": "1.1.17",
     "prettier": "^2.7.1",
     "ts-node": "10.9.1",
-    "typescript": "^4.7.4"
+    "]cript": "^4.7.4"
   }
 }

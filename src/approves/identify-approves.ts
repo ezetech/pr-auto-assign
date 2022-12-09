@@ -1,1 +1,3 @@
-export function identifyRequiredApproves({}) {}
+export function identifyRequiredApproves({}: {}) {
+
+}
