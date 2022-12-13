@@ -1,4 +1,4 @@
 import { withDebugLog } from '../utils';
-import { identifyRequiredApproves as identifyRequiredApprovesFund } from './identify-approves';
+import { identifyApprovers as identifyApproversFunc } from './identify-approvers';
 
-export const identifyRequiredApproves = withDebugLog(identifyRequiredApprovesFund);
+export const identifyApprovers = withDebugLog(identifyApproversFunc);

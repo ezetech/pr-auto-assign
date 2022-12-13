@@ -144,6 +144,7 @@ export async function getLatestCommitDate(pr: PullRequest): Promise<{
       }
     }
   }`);
+    // @todo
     const authoredDateString =
       queryResult.repository.pullRequest.commits.edges[0].node.commit.authoredDate;
     const latestCommitDate = new Date(authoredDateString);
@@ -157,12 +158,13 @@ export async function getLatestCommitDate(pr: PullRequest): Promise<{
   }
 }
 
-type ApprovedReview = {
+export type Reviews = {
   author: string;
+  state: string; // @todo type it more correctly
   submittedAt: Date;
 };
 
-export async function getApproves(pr: PullRequest): Promise<ApprovedReview[]> {
+export async function getReviews(pr: PullRequest): Promise<Reviews[]> {
   const octokit = getMyOctokit();
   const reviews = await octokit.paginate(
     'GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews',
@@ -172,10 +174,10 @@ export async function getApproves(pr: PullRequest): Promise<ApprovedReview[]> {
       pull_number: pr.number,
     },
   );
-  return reviews.reduce<ApprovedReview[]>((result, review) => {
-    if (review.state !== 'APPROVED') {
-      return result;
-    }
+  return reviews.reduce<Reviews[]>((result, review) => {
+    // if (review.state !== 'APPROVED') {
+    //   return result;
+    // }
     if (!review.user) {
       warning(`No review.user provided for review ${review.id}`);
       return result;
@@ -185,6 +187,7 @@ export async function getApproves(pr: PullRequest): Promise<ApprovedReview[]> {
       return result;
     }
     result.push({
+      state: review.state,
       author: review.user.login,
       submittedAt: new Date(review.submitted_at),
     });
