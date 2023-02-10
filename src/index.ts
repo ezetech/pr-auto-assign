@@ -1,6 +1,7 @@
 import { info, error, warning, debug } from './logger';
 import * as gh from './github';
 import {
+  getMessage,
   identifyFileChangeGroups,
   identifyReviewers,
   shouldRequestReview,
@@ -78,6 +79,29 @@ export async function run(): Promise<void> {
     await gh.assignReviewers(pr, reviewersToAssign);
 
     info(`Requesting review to ${reviewersToAssign.join(', ')}`);
+
+    const messageId = config.options?.withMessage?.messageId;
+    debug(`messageId: ${messageId}`);
+    if (messageId) {
+      const existingCommentId = await gh.getExistingCommentId(pr.number, messageId);
+      info(`existingCommentId: ${existingCommentId}`);
+      const message = getMessage({
+        createdBy: author,
+        fileChangesGroups,
+        rulesByCreator: config.rulesByCreator,
+        defaultRules: config.defaultRules,
+        reviewersToAssign
+      });
+      const body = `${messageId}\n\n${message}`;
+      if (existingCommentId) {
+        debug('Updating comment');
+        await gh.updateComment(existingCommentId, body);
+      } else {
+        debug('Creating comment');
+        await gh.createComment(pr.number, body);
+      }
+      info(`Commenting on PR, body: "${body}"`);
+    }
 
     info('Done');
   } catch (err) {

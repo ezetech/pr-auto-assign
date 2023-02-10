@@ -12,6 +12,9 @@ export type DefaultRules = {
 type Options = {
   ignoredLabels?: string[];
   ignoreReassignForMergedPRs?: boolean;
+  withMessage?: {
+    messageId?: string;
+  }
 };
 
 export type Config = {

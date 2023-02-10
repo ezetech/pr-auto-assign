@@ -1,6 +1,6 @@
 {
   "name": "pr-automation",
-  "version": "0.1.0",
+  "version": "1.2.0",
   "description": "GitHub Action that automatically requests review of a pull request based on who creates PR and what files were changed",
   "main": "index.ts",
   "scripts": {
@@ -26,6 +26,7 @@
     "@ezetech/eslint-config": "^1.2.1",
     "@types/chai": "^4.3.1",
     "@types/minimatch": "^3.0.5",
+    "@types/node": "^18.13.0",
     "@typescript-eslint/eslint-plugin": "^5.30.6",
     "@typescript-eslint/parser": "^5.30.6",
     "@vercel/ncc": "^0.34.0",
