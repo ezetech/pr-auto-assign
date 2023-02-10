@@ -1,4 +1,4 @@
-import { Config, DefaultRules } from '../config/typings';
+import { Config, DefaultRules, Rule } from '../config/typings';
 
 type ArrayOfItems = { list: string[]; required: number }[];
 function formatMessage(arr: ArrayOfItems): string {
@@ -13,18 +13,27 @@ function formatMessage(arr: ArrayOfItems): string {
     })
     .join('\n');
 }
+
+function sortRules(rules: Rule[]): Rule[] {
+  return [...rules].sort((a, b) => {
+    return a.reviewers.length - b.reviewers.length;
+  });
+}
 export function getMessage({
   fileChangesGroups,
   createdBy,
   rulesByCreator,
   defaultRules,
+  reviewersToAssign,
 }: {
   createdBy: string;
   rulesByCreator: Config['rulesByCreator'];
   defaultRules?: Config['defaultRules'];
   fileChangesGroups: string[];
+  reviewersToAssign: string[];
 }): string {
   const arr: ArrayOfItems = [];
+  const used = new Set<string>();
   const rules = rulesByCreator[createdBy];
   if (!rules) {
     if (defaultRules) {
@@ -34,8 +43,16 @@ export function getMessage({
         if (!rules) {
           return;
         }
-        rules.forEach((rule) => {
-          arr.push({ list: rule.reviewers, required: rule.required });
+        sortRules(rules).forEach((rule) => {
+          const toAdd = rule.reviewers.reduce<string[]>((result, reviewer) => {
+            if (!used.has(reviewer)) {
+              used.add(reviewer);
+              result.push(reviewer);
+            }
+            return result;
+          }, []);
+          const required = rule.required > toAdd.length ? toAdd.length : rule.required;
+          arr.push({ list: toAdd, required });
         });
       });
     }
@@ -49,7 +66,7 @@ export function getMessage({
     );
 
     fileChangesGroups.forEach((fileGroup) => {
-      rules.forEach((rule) => {
+      sortRules(rules).forEach((rule) => {
         if (rule.ifChanged) {
           const matchFileChanges = rule.ifChanged.some((group) =>
             Boolean(fileChangesGroupsMap[group]),
@@ -58,10 +75,23 @@ export function getMessage({
             return;
           }
         }
-        arr.push({ list: rule.reviewers, required: rule.required });
+        const toAdd = rule.reviewers.reduce<string[]>((result, reviewer) => {
+          if (!used.has(reviewer)) {
+            used.add(reviewer);
+            result.push(reviewer);
+          }
+          return result;
+        }, []);
+        const required = rule.required > toAdd.length ? toAdd.length : rule.required;
+        arr.push({ list: toAdd, required });
       });
     });
   }
-  const result = arr.filter((item) => item.required > 0);
+
+  const result = arr.filter(
+    (item) =>
+      item.required > 0 &&
+      item.list.some((approver) => reviewersToAssign.includes(approver)),
+  );
   return formatMessage(result);
 }

@@ -33810,8 +33810,14 @@ function formatMessage(arr) {
     })
         .join('\n');
 }
-function getMessage({ fileChangesGroups, createdBy, rulesByCreator, defaultRules, }) {
+function sortRules(rules) {
+    return [...rules].sort((a, b) => {
+        return a.reviewers.length - b.reviewers.length;
+    });
+}
+function getMessage({ fileChangesGroups, createdBy, rulesByCreator, defaultRules, reviewersToAssign, }) {
     const arr = [];
+    const used = new Set();
     const rules = rulesByCreator[createdBy];
     if (!rules) {
         if (defaultRules) {
@@ -33821,8 +33827,16 @@ function getMessage({ fileChangesGroups, createdBy, rulesByCreator, defaultRules
                 if (!rules) {
                     return;
                 }
-                rules.forEach((rule) => {
-                    arr.push({ list: rule.reviewers, required: rule.required });
+                sortRules(rules).forEach((rule) => {
+                    const toAdd = rule.reviewers.reduce((result, reviewer) => {
+                        if (!used.has(reviewer)) {
+                            used.add(reviewer);
+                            result.push(reviewer);
+                        }
+                        return result;
+                    }, []);
+                    const required = rule.required > toAdd.length ? toAdd.length : rule.required;
+                    arr.push({ list: toAdd, required });
                 });
             });
         }
@@ -33833,18 +33847,27 @@ function getMessage({ fileChangesGroups, createdBy, rulesByCreator, defaultRules
             return result;
         }, {});
         fileChangesGroups.forEach((fileGroup) => {
-            rules.forEach((rule) => {
+            sortRules(rules).forEach((rule) => {
                 if (rule.ifChanged) {
                     const matchFileChanges = rule.ifChanged.some((group) => Boolean(fileChangesGroupsMap[group]));
                     if (!matchFileChanges) {
                         return;
                     }
                 }
-                arr.push({ list: rule.reviewers, required: rule.required });
+                const toAdd = rule.reviewers.reduce((result, reviewer) => {
+                    if (!used.has(reviewer)) {
+                        used.add(reviewer);
+                        result.push(reviewer);
+                    }
+                    return result;
+                }, []);
+                const required = rule.required > toAdd.length ? toAdd.length : rule.required;
+                arr.push({ list: toAdd, required });
             });
         });
     }
-    const result = arr.filter((item) => item.required > 0);
+    const result = arr.filter((item) => item.required > 0 &&
+        item.list.some((approver) => reviewersToAssign.includes(approver)));
     return formatMessage(result);
 }
 
@@ -33941,6 +33964,7 @@ function run() {
                     fileChangesGroups,
                     rulesByCreator: config.rulesByCreator,
                     defaultRules: config.defaultRules,
+                    reviewersToAssign
                 });
                 const body = `${messageId}\n\n${message}`;
                 if (existingCommentId) {

@@ -90,6 +90,7 @@ export async function run(): Promise<void> {
         fileChangesGroups,
         rulesByCreator: config.rulesByCreator,
         defaultRules: config.defaultRules,
+        reviewersToAssign
       });
       const body = `${messageId}\n\n${message}`;
       if (existingCommentId) {

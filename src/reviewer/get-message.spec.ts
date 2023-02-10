@@ -11,6 +11,7 @@ describe('should get message: ', () => {
   it('should get readable message about rules (1)', (done) => {
     const result = getMessage({
       createdBy: 'Bob',
+      reviewersToAssign: ['Calvin', 'Quade', 'Bob', 'Colin', 'Chet'],
       rulesByCreator: {
         Bob: [
           {
@@ -34,9 +35,10 @@ describe('should get message: ', () => {
     );
     done();
   });
-  it('should get readable message about rules (2)', (done) => {
+  it('should get readable message about rules (2). Skip line for 0 required from group', (done) => {
     const result = getMessage({
       createdBy: 'Bob',
+      reviewersToAssign: ['Calvin', 'Vinny', 'Hank', 'Colin'],
       rulesByCreator: {
         Bob: [
           {
@@ -60,6 +62,71 @@ describe('should get message: ', () => {
     });
     expect(result).to.deep.equal(
       `- Calvin (1 required out of 1)\n- Vinny, Hank (2 required out of 2)`,
+    );
+    done();
+  });
+  it('should get readable message about rules (3). Exclude creator from messages', (done) => {
+    const result = getMessage({
+      createdBy: 'Bob',
+      reviewersToAssign: ['Calvin', 'Vinny', 'Hank', 'Colin'],
+      rulesByCreator: {
+        Bob: [
+          {
+            reviewers: ['Calvin'],
+            required: 1,
+            assign: 1,
+          },
+          {
+            reviewers: ['Vinny', 'Hank'],
+            required: 2,
+            assign: 1,
+          },
+          {
+            reviewers: ['Bob'],
+            required: 1,
+            assign: 1,
+          },
+        ],
+      },
+      fileChangesGroups: ['file-group-2'],
+    });
+    expect(result).to.deep.equal(
+      `- Calvin (1 required out of 1)\n- Vinny, Hank (2 required out of 2)`,
+    );
+    done();
+  });
+  it('should get readable message about rules (4). Exclude duplicates', (done) => {
+    const result = getMessage({
+      createdBy: 'Bob',
+      reviewersToAssign: ['Calvin', 'Vinny', 'Hank', 'Colin'],
+      rulesByCreator: {
+        Bob: [
+          {
+            reviewers: ['Calvin'],
+            required: 1,
+            assign: 1,
+          },
+          {
+            reviewers: ['Vinny', 'Hank'],
+            required: 2,
+            assign: 1,
+          },
+          {
+            reviewers: ['Bob'],
+            required: 1,
+            assign: 1,
+          },
+          {
+            reviewers: ['Vinny'],
+            required: 1,
+            assign: 1,
+          },
+        ],
+      },
+      fileChangesGroups: ['file-group-2'],
+    });
+    expect(result).to.deep.equal(
+      `- Calvin (1 required out of 1)\n- Vinny (1 required out of 1)\n- Hank (1 required out of 1)`,
     );
     done();
   });
