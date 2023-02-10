@@ -1,10 +1,12 @@
 import * as yaml from 'yaml';
+import { Endpoints } from '@octokit/types';
 import { context, getOctokit } from '@actions/github';
 import { getInput } from '@actions/core';
 import { WebhookPayload } from '@actions/github/lib/interfaces';
 import { validateConfig } from './config';
 import { Config } from './config/typings';
 import { debug, error } from './logger';
+import { GitHub } from '@actions/github/lib/utils';
 
 function getMyOctokit() {
   const myToken = getInput('token');
@@ -150,4 +152,67 @@ export async function assignReviewers(
     reviewers: reviewers,
   });
   return;
+}
+
+export type CreateIssueCommentResponseData =
+  Endpoints['POST /repos/{owner}/{repo}/issues/{issue_number}/comments']['response']['data'];
+
+export async function getExistingCommentId(
+  issueNumber: number,
+  messageId: string,
+): Promise<number | undefined> {
+  const octokit = getMyOctokit();
+  const parameters = {
+    owner: context.repo.owner,
+    repo: context.repo.repo,
+    issue_number: issueNumber,
+    per_page: 100,
+  };
+
+  let found;
+
+  for await (const comments of octokit.paginate.iterator(
+    octokit.rest.issues.listComments,
+    parameters,
+  )) {
+    found = comments.data.find(({ body }) => {
+      return (body?.search(messageId) ?? -1) > -1;
+    });
+
+    if (found) {
+      break;
+    }
+  }
+
+  return found?.id;
+}
+
+export async function updateComment(
+  existingCommentId: number,
+  body: string,
+): Promise<CreateIssueCommentResponseData> {
+  const octokit = getMyOctokit();
+  const updatedComment = await octokit.rest.issues.updateComment({
+    owner: context.repo.owner,
+    repo: context.repo.repo,
+    comment_id: existingCommentId,
+    body,
+  });
+
+  return updatedComment.data;
+}
+
+export async function createComment(
+  issueNumber: number,
+  body: string,
+): Promise<CreateIssueCommentResponseData> {
+  const octokit = getMyOctokit();
+  const createdComment = await octokit.rest.issues.createComment({
+    owner: context.repo.owner,
+    repo: context.repo.repo,
+    issue_number: issueNumber,
+    body,
+  });
+
+  return createdComment.data;
 }

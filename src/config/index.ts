@@ -6,6 +6,9 @@ const schema = Joi.object<Config>()
     options: Joi.object({
       ignoredLabels: Joi.array().items(Joi.string()).optional(),
       ignoreReassignForMergedPRs: Joi.boolean().optional(),
+      withMessage: {
+        messageId: Joi.string().optional(),
+      },
     }).optional(),
     defaultRules: Joi.object({
       byFileGroups: Joi.object().pattern(
