@@ -81,8 +81,10 @@ export async function run(): Promise<void> {
     info(`Requesting review to ${reviewersToAssign.join(', ')}`);
 
     const messageId = config.options?.withMessage?.messageId;
+    debug(`messageId: ${messageId}`);
     if (messageId) {
       const existingCommentId = await gh.getExistingCommentId(pr.number, messageId);
+      info(`existingCommentId: ${existingCommentId}`);
       const message = getMessage({
         createdBy: author,
         fileChangesGroups,
@@ -91,8 +93,10 @@ export async function run(): Promise<void> {
       });
       const body = `${messageId}\n\n${message}`;
       if (existingCommentId) {
+        debug('Updating comment');
         await gh.updateComment(pr.number, body);
       } else {
+        debug('Creating comment');
         await gh.createComment(pr.number, body);
       }
       info(`Commenting on PR, body: "${body}"`);
