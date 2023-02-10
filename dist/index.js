@@ -33420,6 +33420,9 @@ const schema = lib.object()
     options: lib.object({
         ignoredLabels: lib.array().items(lib.string()).optional(),
         ignoreReassignForMergedPRs: lib.boolean().optional(),
+        withMessage: {
+            messageId: lib.string().optional(),
+        },
     }).optional(),
     defaultRules: lib.object({
         byFileGroups: lib.object().pattern(lib.string(), lib.array().items(lib.object({
@@ -33460,6 +33463,13 @@ var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _argume
         function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
+};
+var __asyncValues = (undefined && undefined.__asyncValues) || function (o) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var m = o[Symbol.asyncIterator], i;
+    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
+    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
+    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
 };
 
 
@@ -33578,6 +33588,63 @@ function assignReviewers(pr, reviewers) {
             reviewers: reviewers,
         });
         return;
+    });
+}
+function getExistingCommentId(issueNumber, messageId) {
+    var e_1, _a;
+    return __awaiter(this, void 0, void 0, function* () {
+        const octokit = getMyOctokit();
+        const parameters = {
+            owner: github.context.repo.owner,
+            repo: github.context.repo.repo,
+            issue_number: issueNumber,
+            per_page: 100,
+        };
+        let found;
+        try {
+            for (var _b = __asyncValues(octokit.paginate.iterator(octokit.rest.issues.listComments, parameters)), _c; _c = yield _b.next(), !_c.done;) {
+                const comments = _c.value;
+                found = comments.data.find(({ body }) => {
+                    var _a;
+                    return ((_a = body === null || body === void 0 ? void 0 : body.search(messageId)) !== null && _a !== void 0 ? _a : -1) > -1;
+                });
+                if (found) {
+                    break;
+                }
+            }
+        }
+        catch (e_1_1) { e_1 = { error: e_1_1 }; }
+        finally {
+            try {
+                if (_c && !_c.done && (_a = _b.return)) yield _a.call(_b);
+            }
+            finally { if (e_1) throw e_1.error; }
+        }
+        return found === null || found === void 0 ? void 0 : found.id;
+    });
+}
+function updateComment(existingCommentId, body) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const octokit = getMyOctokit();
+        const updatedComment = yield octokit.rest.issues.updateComment({
+            owner: github.context.repo.owner,
+            repo: github.context.repo.repo,
+            comment_id: existingCommentId,
+            body,
+        });
+        return updatedComment.data;
+    });
+}
+function createComment(issueNumber, body) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const octokit = getMyOctokit();
+        const createdComment = yield octokit.rest.issues.createComment({
+            owner: github.context.repo.owner,
+            repo: github.context.repo.repo,
+            issue_number: issueNumber,
+            body,
+        });
+        return createdComment.data;
     });
 }
 
@@ -33732,9 +33799,60 @@ function identifyFileChangeGroups({ fileChangesGroups, changedFiles, }) {
     return [...set];
 }
 
+;// CONCATENATED MODULE: ./src/reviewer/get-message.ts
+function formatMessage(arr) {
+    if (!arr.length) {
+        return '';
+    }
+    return arr
+        .map((item) => {
+        return `- ${item.list.join(', ')} (${item.required} required out of ${item.list.length})`;
+    })
+        .join('\n');
+}
+function getMessage({ fileChangesGroups, createdBy, rulesByCreator, defaultRules, }) {
+    const arr = [];
+    const rules = rulesByCreator[createdBy];
+    if (!rules) {
+        if (defaultRules) {
+            const rulesByFileGroup = defaultRules.byFileGroups;
+            fileChangesGroups.forEach((fileGroup) => {
+                const rules = rulesByFileGroup[fileGroup];
+                if (!rules) {
+                    return;
+                }
+                rules.forEach((rule) => {
+                    arr.push({ list: rule.reviewers, required: rule.required });
+                });
+            });
+        }
+    }
+    else {
+        const fileChangesGroupsMap = fileChangesGroups.reduce((result, group) => {
+            result[group] = group;
+            return result;
+        }, {});
+        fileChangesGroups.forEach((fileGroup) => {
+            rules.forEach((rule) => {
+                if (rule.ifChanged) {
+                    const matchFileChanges = rule.ifChanged.some((group) => Boolean(fileChangesGroupsMap[group]));
+                    if (!matchFileChanges) {
+                        return;
+                    }
+                }
+                arr.push({ list: rule.reviewers, required: rule.required });
+            });
+        });
+    }
+    const result = arr.filter((item) => item.required > 0);
+    return formatMessage(result);
+}
+
 ;// CONCATENATED MODULE: ./src/reviewer/index.ts
 
 
+
+const reviewer_getMessage = withDebugLog(getMessage);
 const reviewer_shouldRequestReview = withDebugLog(shouldRequestReview);
 const reviewer_identifyReviewers = withDebugLog(identifyReviewers);
 const reviewer_identifyFileChangeGroups = withDebugLog(identifyFileChangeGroups);
@@ -33754,7 +33872,7 @@ var src_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _argu
 
 
 function run() {
-    var _a;
+    var _a, _b, _c;
     return src_awaiter(this, void 0, void 0, function* () {
         try {
             info('Starting pr auto assign.');
@@ -33813,6 +33931,28 @@ function run() {
             }
             yield assignReviewers(pr, reviewersToAssign);
             info(`Requesting review to ${reviewersToAssign.join(', ')}`);
+            const messageId = (_c = (_b = config.options) === null || _b === void 0 ? void 0 : _b.withMessage) === null || _c === void 0 ? void 0 : _c.messageId;
+            debug(`messageId: ${messageId}`);
+            if (messageId) {
+                const existingCommentId = yield getExistingCommentId(pr.number, messageId);
+                info(`existingCommentId: ${existingCommentId}`);
+                const message = reviewer_getMessage({
+                    createdBy: author,
+                    fileChangesGroups,
+                    rulesByCreator: config.rulesByCreator,
+                    defaultRules: config.defaultRules,
+                });
+                const body = `${messageId}\n\n${message}`;
+                if (existingCommentId) {
+                    debug('Updating comment');
+                    yield updateComment(pr.number, body);
+                }
+                else {
+                    debug('Creating comment');
+                    yield createComment(pr.number, body);
+                }
+                info(`Commenting on PR, body: "${body}"`);
+            }
             info('Done');
         }
         catch (err) {
