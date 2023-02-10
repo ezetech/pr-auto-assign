@@ -95,7 +95,7 @@ export async function run(): Promise<void> {
       const body = `${messageId}\n\n${message}`;
       if (existingCommentId) {
         debug('Updating comment');
-        await gh.updateComment(pr.number, body);
+        await gh.updateComment(existingCommentId, body);
       } else {
         debug('Creating comment');
         await gh.createComment(pr.number, body);

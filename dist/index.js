@@ -33969,7 +33969,7 @@ function run() {
                 const body = `${messageId}\n\n${message}`;
                 if (existingCommentId) {
                     debug('Updating comment');
-                    yield updateComment(pr.number, body);
+                    yield updateComment(existingCommentId, body);
                 }
                 else {
                     debug('Creating comment');
