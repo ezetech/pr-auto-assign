@@ -1,6 +1,6 @@
 {
   "name": "pr-automation",
-  "version": "1.2.0",
+  "version": "alpha-0.0.1",
   "description": "GitHub Action that automatically requests review of a pull request based on who creates PR and what files were changed",
   "main": "index.ts",
   "scripts": {
